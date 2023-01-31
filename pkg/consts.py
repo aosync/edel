@@ -24,22 +24,25 @@ bldid.i = 0
 ROOT = Path(os.environ.get('EDEL_ROOT', '/')).resolve()
 
 # Path to the installed package repository
-INSTALLED_PATH = os.environ.get('EDEL_INSTALLED', '/var/installed')
+INSTALLED_PATH = os.environ.get('EDEL_INSTALLED', '/usr/installed')
 
 # Repository of installed packages
 INSTALLED = repository.Repository([INSTALLED_PATH])
 
 # List of paths to the user specified repositories
-REPOS_PATHS = os.environ.get('EDEL_REPOS', '').split(':')
+REPOS_PATHS = os.environ.get('EDEL_REPOS', '/usr/ports').split(':')
 
 # Repositories
 REPOS = repository.Repository(
     REPOS_PATHS + [INSTALLED_PATH]
 )
 
-# Path to the cache
+# Path to the cache, this is hardcoded (bad) because I don't
+# know how to properly manage the different users involved in
+# building, and for example knowing if a variable is defined for
+# that user
 CACHE = Path(
-    os.environ.get('XDG_CACHE_HOME', os.environ['HOME'] + '/.cache/edel')
+    os.environ['HOME'] + '/.cache/edel'
 ).resolve()
 
 # Path the directory holding sources

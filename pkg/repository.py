@@ -1,4 +1,5 @@
 from . import package
+from . import perms
 
 from pathlib import Path
 
@@ -28,9 +29,13 @@ class Repository:
            of the overlay, useful for the installation
            procedure"""
 
+        perms.elevate()
+
         pkg = self.repos[0] / pkgname
         pkg.mkdir(parents=True, exist_ok=True)
         
+        perms.drop()
+
         return package.Package(pkg, repo=self)
 
     def lookup(self, path):

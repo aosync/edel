@@ -2,8 +2,10 @@ from . import cache
 from . import tarcopy
 from . import bldenv
 from . import consts
+from . import perms
 
 import os
+import sys
 from urllib.parse import urlparse
 from pathlib import Path
 from distutils.dir_util import copy_tree
@@ -231,7 +233,11 @@ class Package:
         if not self.installed():
             return
 
+        perms.elevate()
+
         self.paths['explicit'].touch()
+
+        perms.drop()
 
     def explicit(self):
         """Returns whether the package is explicitly
@@ -245,16 +251,30 @@ class Package:
         if not self.installed():
             return
 
+        perms.elevate()
+        
         self.paths['explicit'].unlink(missing_ok=True)
+
+        perms.drop()
 
     def build(self):
         pcwd = os.getcwd()
         
         os.chdir(self.paths['pkg'])
 
+        perms.drop()
         bld = bldenv.Bldenv()
-        self.build0(bld)
-        self.build1(bld)
+
+        pid = os.fork()
+        if pid == 0:
+            perms.drop_totally()
+        
+            self.build0(bld)
+            self.build1(bld)
+            sys.exit(0)
+        else:
+            os.wait()
+
         pkg = self.install(bld)
 
         os.chdir(pcwd)
@@ -300,8 +320,13 @@ class Package:
         """Installs a package based on its completed
            build environment"""
 
-        # Copy the pacakage
+
+        # Copy the package
         pkg = consts.INSTALLED.create(self.name)
+
+        
+        perms.elevate()
+
         copy_tree(str(self.paths['pkg']), str(pkg.paths['pkg']))
 
         # Add the manifest
@@ -312,14 +337,17 @@ class Package:
 
         # FIXME: support conflicts
 
+        perms.drop()
+
         return pkg
 
 
     def uninstall(self):
         """Uninstalls a package"""
-        
+
         if not self.installed():
             return
+
         
         # Get a reversed version of the manifest
         manifest = self.manifest().copy()
@@ -327,6 +355,8 @@ class Package:
 
         # List files installed in root
         manifest = [consts.ROOT / man.relative_to('/') for man in manifest]
+
+        perms.elevate()
 
         # Remove files and directories
         for man in manifest:
@@ -339,6 +369,8 @@ class Package:
                 man.unlink(missing_ok=True)
 
         shutil.rmtree(self.paths['pkg'])
+
+        perms.drop()
 
     def make_collective_build_plan(pkgs, plan=[]):
         for pkg in pkgs:
