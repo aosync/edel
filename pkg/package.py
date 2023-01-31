@@ -262,19 +262,23 @@ class Package:
         
         os.chdir(self.paths['pkg'])
 
-        perms.drop()
+        # Create the build environment
         bld = bldenv.Bldenv()
 
+        # Fetch the build resources
+        self.build0(bld)
+
+        # Drop priviledges to bld user to execute the build scripts
         pid = os.fork()
         if pid == 0:
             perms.drop_totally()
         
-            self.build0(bld)
             self.build1(bld)
             sys.exit(0)
         else:
             os.wait()
 
+        # Install the package
         pkg = self.install(bld)
 
         os.chdir(pcwd)
@@ -320,13 +324,12 @@ class Package:
         """Installs a package based on its completed
            build environment"""
 
-
         # Copy the package
         pkg = consts.INSTALLED.create(self.name)
-
         
         perms.elevate()
 
+        # Copy the package contents
         copy_tree(str(self.paths['pkg']), str(pkg.paths['pkg']))
 
         # Add the manifest
@@ -347,7 +350,6 @@ class Package:
 
         if not self.installed():
             return
-
         
         # Get a reversed version of the manifest
         manifest = self.manifest().copy()

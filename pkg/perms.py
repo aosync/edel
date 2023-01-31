@@ -48,8 +48,11 @@ def drop_totally():
     if PREV_UID != 0:
         return
 
-    if not ELEVATED:
-        elevate()
+    if ELEVATED:
+        drop()
+
+    os.seteuid(PREV_UID)
+    os.setegid(PREV_GID)
 
     os.setgid(BLD_USER.pw_gid)
     os.setuid(BLD_USER.pw_uid)
