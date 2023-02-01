@@ -62,8 +62,8 @@ class Repository:
             for pkgname in repo.iterdir():
                 if pkgname.name in self.cache:
                     pkgs.append(self.cache[pkgname.name])
-                
-                pkgs.append(package.Package(pkgname, repo=self))
+                else:
+                    pkgs.append(package.Package(pkgname, repo=self))
 
         return pkgs
     

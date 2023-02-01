@@ -23,6 +23,16 @@ def install(argv):
 
     plan = package.Package.make_collective_build_plan(pkgs)
 
+    if len(plan) > 1:
+        print('edel: the following packages will be installed:')
+        for pkg in plan:
+            print('\t%s' % pkg.name)
+        print('edel: proceed? [Y/n] ', end='')
+
+        response = input().lower()
+        if response != 'y' and response != '':
+            return
+
     for pkg in plan:
         print('edel: start build of %s...' % pkg.name)
 

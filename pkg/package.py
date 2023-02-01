@@ -273,10 +273,14 @@ class Package:
         if pid == 0:
             perms.drop_totally()
         
-            self.build1(bld)
-            sys.exit(0)
+            code = self.build1(bld)
+            sys.exit(code)
         else:
-            os.wait()
+            status = os.wait()
+            code = os.waitstatus_to_exitcode(status[1])
+
+            if code != 0:
+                raise Exception('build of %s exitted with code %d' % (self.name, code))
 
         # Install the package
         pkg = self.install(bld)
@@ -313,12 +317,16 @@ class Package:
         """Completes the build environment, readying it for
            installation, by executing the build script"""
 
+        code = 0
+
         if self.paths['build'].exists():
-            subprocess.call(['sh', self.paths['build'], bld.proto], cwd=bld.build)
+            code = subprocess.call(['sh', '-e', self.paths['build'], bld.proto], cwd=bld.build)
 
         man = [str(p) for p in manifest(bld.proto)]
         man = '\n'.join(man)
         write_file(bld.manifest, man)
+
+        return code
     
     def install(self, bld):
         """Installs a package based on its completed
