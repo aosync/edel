@@ -13,7 +13,7 @@ class Repository:
             return self.cache[pkgname]
 
         if pkgname.startswith('.'):
-            pkg = pkgname.resolve()
+            pkg = Path(pkgname).resolve()
             if pkg.exists():
                 return package.Package(pkg, repo=self)
         

@@ -3,12 +3,14 @@ from . import tarcopy
 from . import bldenv
 from . import consts
 from . import perms
+from .exceptions import *
 
 import os
 import sys
 from urllib.parse import urlparse
 from pathlib import Path
 from distutils.dir_util import copy_tree
+import hashlib
 import shutil
 import subprocess
 
@@ -63,13 +65,16 @@ class Source:
         # Get the dst component
         self.dst = components[1]
 
+        # Path of source once fetched
+        self.path = None
+
     def __str__(self):
         return '%s -> %s' % (self.src, self.dst)
 
     def __repr__(self):
         return str(self)
 
-    def fetch(self, dst):
+    def fetch(self):
         cache_name = self.src.split('/')[-1]
 
         path = ''
@@ -78,14 +83,36 @@ class Source:
         else:
             path = self.src
 
-        path = Path(path).resolve()
+        self.path = Path(path).resolve()
+
+    def checksum(self):
+        if self.path.is_dir():
+            return None
+
+        md5 = hashlib.md5()
+        with open(self.path, 'rb') as file:
+            while True:
+                data = file.read(65536)
+
+                if not data:
+                    break
+
+                md5.update(data)
+
+        return md5.hexdigest()
+
+    def extract(self, dst):
+        if not self.path:
+            self.fetch()
+
         dst = Path(dst).resolve()
         dst.mkdir(parents=True, exist_ok=True)
 
-        if path.is_dir():
-            copy_tree(str(path), str(dst))
+        if self.path.is_dir():
+            copy_tree(str(self.path), str(dst))
         else:
-            tarcopy.copy(path, dst)
+            tarcopy.copy(self.path, dst)
+
 
 class Package:
     """A class that defines what a package is,
@@ -131,7 +158,7 @@ class Package:
             # Path to the checksum file, containing the
             # checksum of the different sources if
             # applicable
-            'checksum': path / 'checksum',
+            'checksums': path / 'checksums',
 
             # Path to a file that is present if the package
             # was explicitly installed
@@ -146,6 +173,9 @@ class Package:
         
         # Depends object of the package
         self._depends = None
+
+        # Checksums file
+        self._checksums = None
 
         # Manifest of the package
         self._manifest = None
@@ -162,6 +192,9 @@ class Package:
 
         if self._sources:
             return self._sources
+
+        if not self.paths['sources'].exists():
+            return None
         
         sources = read_file(self.paths['sources']).strip()
 
@@ -193,6 +226,25 @@ class Package:
         self._depends = read_file(self.paths['depends']).splitlines()
 
         return self._depends
+
+    def checksums(self):
+        """Returns the checksums dictionary of
+           the package"""
+
+        if self._checksums != None:
+            return self._checksums
+
+        if not self.paths['checksums'].exists():
+            return None
+
+        self._checksums = {}
+
+        checksums = read_file(self.paths['checksums']).splitlines()
+        for line in checksums:
+            components = line.split()
+            self._checksums[components[1]] = components[0]
+
+        return self._checksums
 
     def manifest(self):
         """Returns the list of files in the proto"""
@@ -280,7 +332,7 @@ class Package:
             code = os.waitstatus_to_exitcode(status[1])
 
             if code != 0:
-                raise Exception('build of %s exitted with code %d' % (self.name, code))
+                raise PkgException('build of %s exitted with code %d' % (self.name, code))
 
         # Install the package
         pkg = self.install(bld)
@@ -308,10 +360,41 @@ class Package:
         """Prepares the build environment, by notably
            fetching the sources"""
 
+        if not self.sources():
+            return
+
+        checksums = self.checksums()
+        if not checksums:
+            raise PkgException('missing checksums for package %s' % self.name)
+
         for source in self.sources():
             dst = source.dst.replace('@', str(bld.proto)).replace('$', str(bld.build))
             
-            source.fetch(dst)
+            source.fetch()
+
+            checksum = source.checksum()
+
+            if checksum and checksums.get(source.path.name, '') != checksum:
+                raise PkgException('checksum mismatch for package %s and source %s' % (self.name, source.path.name))
+
+            source.extract(dst)
+
+    def make_checksums(self):
+        checksums = {}
+
+        for source in self.sources():
+            source.fetch()
+
+            checksum = source.checksum()
+            checksums[source.path.name] = checksum
+
+        perms.elevate()
+
+        with open(self.paths['checksums'], 'w') as file:
+            for key, value in checksums.items():
+                print('%s %s' % (value, key), file=file)
+
+        perms.drop()
 
     def build1(self, bld):
         """Completes the build environment, readying it for

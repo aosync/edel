@@ -11,7 +11,7 @@ def remove(argv):
         
         rdepends = consts.INSTALLED.rdepends(pkg)
         if rdepends:
-            print('edel: package %s unmarked as explicit' % (pkgname, len(rdepends)))
+            print('edel: package %s unmarked as explicit' % pkgname)
             pkg.unmark_explicit()
             continue
 
