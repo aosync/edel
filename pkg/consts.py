@@ -37,6 +37,9 @@ REPOS = repository.Repository(
     REPOS_PATHS + [INSTALLED_PATH]
 )
 
+# Path to the directory where archives will be stored
+ARCHIVES = Path(os.environ.get('EDEL_ARCHIVES', '/var/archives'))
+
 # Path to the cache, this is hardcoded (bad) because I don't
 # know how to properly manage the different users involved in
 # building, and for example knowing if a variable is defined for

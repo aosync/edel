@@ -10,6 +10,7 @@ import sys
 from urllib.parse import urlparse
 from pathlib import Path
 from distutils.dir_util import copy_tree
+import tarfile
 import hashlib
 import shutil
 import subprocess
@@ -309,7 +310,7 @@ class Package:
 
         perms.drop()
 
-    def build(self):
+    def build(self, archive=True):
         pcwd = os.getcwd()
         
         os.chdir(self.paths['pkg'])
@@ -333,6 +334,10 @@ class Package:
 
             if code != 0:
                 raise PkgException('build of %s exitted with code %d' % (self.name, code))
+
+        # Create an archive of the package
+        if archive:
+            self.archive(bld)
 
         # Install the package
         pkg = self.install(bld)
@@ -411,6 +416,18 @@ class Package:
 
         return code
     
+    def archive(self, bld):
+        archive = consts.ARCHIVES / (self.name + '-' + self.version() + '.tar.gz')
+
+        perms.elevate()
+
+        with tarfile.open(archive, 'w:gz') as tar:
+            for fn in bld.proto.iterdir():
+                tar.add(fn, arcname=fn.relative_to(bld.proto))
+
+        perms.drop()
+                    
+
     def install(self, bld):
         """Installs a package based on its completed
            build environment"""

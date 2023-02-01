@@ -3,7 +3,7 @@ from pkg import package
 import time
 
 
-def install(argv):
+def install(argv, archive):
     pkgs = []
     
     for pkgname in argv[1:]:
@@ -38,7 +38,7 @@ def install(argv):
 
         begin = time.time()
 
-        pkg_installed = pkg.build()
+        pkg_installed = pkg.build(archive=archive)
         if pkg in pkgs:
             pkg_installed.mark_explicit()
 

@@ -14,11 +14,17 @@ from cli import autoremove
 from cli import checksums
 from cli import listpkg
 
+if len(sys.argv) < 2:
+    print('edel: need subcommand')
+    sys.exit(1)
+
 try:
     if sys.argv[1] == 'debug':
         debug.debug(sys.argv[1:])
     elif sys.argv[1] == 'install':
-        install.install(sys.argv[1:])
+        install.install(sys.argv[1:], False)
+    elif sys.argv[1] == 'build':
+        install.install(sys.argv[1:], True)
     elif sys.argv[1] == 'remove':
         remove.remove(sys.argv[1:])
     elif sys.argv[1] == 'autoremove':
