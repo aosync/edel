@@ -500,6 +500,8 @@ class Package:
         perms.drop()
 
     def make_collective_build_plan(pkgs, plan=[]):
+        """Makes a build plan of a list of packages"""
+
         for pkg in pkgs:
             plan.extend(pkg.make_build_plan())
             plan = f7(plan)
@@ -507,6 +509,10 @@ class Package:
         return plan
 
     def make_build_plan(self, plan=[]):
+        """Makes a build plan, that is a list of all the
+           packages to be installed or upgraded in order,
+           to make the package installable"""
+
         if self in plan:
             return plan
 
