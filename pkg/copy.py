@@ -45,11 +45,11 @@ def copytree(src, dst, force=False, aux=[], dry=False):
 
 def remove(dst):
     dst = Path(dst)
-    
-    if dst.is_dir():
+
+    if dst.is_dir() and not dst.is_symlink():
         try:
             dst.rmdir()
         except:
-            dst.unlink(missing_ok=True)
+            pass
     else:
         dst.unlink(missing_ok=True)
