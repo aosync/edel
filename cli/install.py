@@ -39,8 +39,11 @@ def install(argv, archive):
         begin = time.time()
 
         pkg_installed = pkg.build(archive=archive)
-        if pkg in pkgs:
+        if pkg_installed and pkg in pkgs:
             pkg_installed.mark_explicit()
+        elif not pkg_installed:
+            print('edel: there was an error installing %s' % pkg.name)
+            return
 
         end = time.time()
         

@@ -3,6 +3,7 @@ from . import tarcopy
 from . import bldenv
 from . import consts
 from . import perms
+from . import copy
 from .exceptions import *
 
 import os
@@ -30,19 +31,6 @@ def is_url(url):
     r = urlparse(url)
 
     return r.netloc != '' and r.scheme != ''
-
-def manifest(root_dir):
-    result = []
-
-    for dir_path, dir_names, file_names in os.walk(root_dir):
-        for file_name in file_names:
-            result.append(os.path.join(dir_path, file_name))
-        for dir_name in dir_names:
-            result.append(os.path.join(dir_path, dir_name))
-
-    result = [Path('/') / Path(r).relative_to(root_dir) for r in result]
-
-    return result
 
 def f7(seq):
     seen = set()
@@ -110,7 +98,7 @@ class Source:
         dst.mkdir(parents=True, exist_ok=True)
 
         if self.path.is_dir():
-            copy_tree(str(self.path), str(dst))
+            copy.copy(self.path, dst)
         else:
             tarcopy.copy(self.path, dst)
 
@@ -410,9 +398,8 @@ class Package:
         if self.paths['build'].exists():
             code = subprocess.call(['sh', '-e', self.paths['build'], bld.proto], cwd=bld.build)
 
-        man = [str(p) for p in manifest(bld.proto)]
-        man = '\n'.join(man)
-        write_file(bld.manifest, man)
+        man = '\n'.join([str(p) for p in bld.manifest()])
+        write_file(bld.manifest_path, man)
 
         return code
     
@@ -432,23 +419,47 @@ class Package:
         """Installs a package based on its completed
            build environment"""
 
-        # Copy the package
-        pkg = consts.INSTALLED.create(self.name)
+        # Get the already installed package if any
+        pkg = consts.INSTALLED.resolve(self.name)
         
+        installed_manifest = []
+        if pkg:
+            installed_manifest = pkg.manifest()
+        
+        # Get potential conflicts
+        conflicts = []
+        copy.copy(bld.proto, consts.ROOT, aux=conflicts, dry=True)
+        conflicts = [conflict for conflict in conflicts if not Path('/') / conflict[1].relative_to(consts.ROOT) in installed_manifest] 
+        if conflicts:
+            return None
+
         perms.elevate()
+        
+        if pkg:
+            pkg.remove()
+
+        pkg = consts.INSTALLED.create(self.name)
 
         # Copy the package contents
-        copy_tree(str(self.paths['pkg']), str(pkg.paths['pkg']))
+        copy.copy(self.paths['pkg'], pkg.paths['pkg'])
 
         # Add the manifest
-        shutil.copy(bld.manifest, pkg.paths['manifest'])
-        
-        # Copy the proto into the root
-        copy_tree(str(bld.proto), str(consts.ROOT))
+        copy.copy(bld.manifest_path, pkg.paths['manifest'])
 
-        # FIXME: support conflicts
+        # Copy the proto into the root
+        copy.copy(bld.proto, consts.ROOT, force=True)
+
+        # Calculate obsolete paths
+        obsolete = [consts.ROOT / path.relative_to('/') for path in installed_manifest if not path in bld.manifest()]
+        obsolete.reverse()
+        if obsolete:
+            for path in obsolete:
+                copy.remove(path)
 
         perms.drop()
+
+        # Remove the build environment
+        bld.remove()
 
         return pkg
 
@@ -470,14 +481,20 @@ class Package:
 
         # Remove files and directories
         for man in manifest:
-            if man.is_dir():
-                try:
-                    man.rmdir()
-                except:
-                    pass
-            else:
-                man.unlink(missing_ok=True)
+            copy.remove(man)
+        
+        # Remove the package from installed packages repository
+        self.remove()
 
+        perms.drop()
+
+    def remove(self):
+        """Remove a package (note: this doesn't
+           uninstall it, just remove it from the
+           parent repository)"""
+        
+        perms.elevate()
+        
         shutil.rmtree(self.paths['pkg'])
 
         perms.drop()
